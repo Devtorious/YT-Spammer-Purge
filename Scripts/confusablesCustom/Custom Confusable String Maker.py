@@ -26,12 +26,9 @@ from config import CONFUSABLE_MAPPING_PATH
 with open(os.path.join(os.path.dirname(__file__), CONFUSABLE_MAPPING_PATH), "r") as mappings:
     CONFUSABLE_MAP = json.loads(mappings.readline())
 def confusable_characters(char):
-    mapped_chars = CONFUSABLE_MAP.get(char)
-    if mapped_chars:
+    if mapped_chars := CONFUSABLE_MAP.get(char):
         return mapped_chars
-    if len(char) <= 1:
-        return [char]
-    return None
+    return [char] if len(char) <= 1 else None
 # ---------------------------------------------------------------------------------------------------
 # Following code by ThioJoe
 def check_char(realLetterLower, letterInSpam):

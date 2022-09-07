@@ -20,7 +20,7 @@ from googleapiclient.errors import HttpError
 ##########################################################################################
 
 # Call the API's commentThreads.list method to list the existing comments.
-def get_comments(current, filtersDict, miscData, config, allVideoCommentsDict, scanVideoID=None, nextPageToken=None, videosToScan=None):  # None are set as default if no parameters passed into function
+def get_comments(current, filtersDict, miscData, config, allVideoCommentsDict, scanVideoID=None, nextPageToken=None, videosToScan=None):# None are set as default if no parameters passed into function
   # Initialize some variables
   authorChannelName = None
   commentText = None
@@ -39,9 +39,8 @@ def get_comments(current, filtersDict, miscData, config, allVideoCommentsDict, s
         fields=fieldsToFetch,
         textFormat="plainText"
       ).execute()
-    
-    # Get all comment threads across the whole channel
-    elif scanVideoID is None:
+
+    else:
       results = auth.YOUTUBE.commentThreads().list(
         part="snippet, replies",
         allThreadsRelatedToChannelId=auth.CURRENTUSER.id,
@@ -60,10 +59,10 @@ def get_comments(current, filtersDict, miscData, config, allVideoCommentsDict, s
     utils.print_exception_during_scan(ex)
     current.errorOccurred = True
     return "Error", None
-    
+
   # Get token for next page. If no token, sets to 'End'
   RetrievedNextPageToken = results.get("nextPageToken", "End")
-  
+
   # After getting all comments threads for page, extracts data for each and stores matches in current.matchedCommentsDict
   # Also goes through each thread and executes get_replies() to get reply content and matches
   for item in results["items"]:
@@ -110,7 +109,7 @@ def get_comments(current, filtersDict, miscData, config, allVideoCommentsDict, s
     if config['json_log_all_comments'] == True:
       currentCommentDict['uploaderChannelID'] = miscData.channelOwnerID
       currentCommentDict['uploaderChannelName'] = miscData.channelOwnerName
-      currentCommentDict['textUnsanitized'] = str(commentText)
+      currentCommentDict['textUnsanitized'] = commentText
       currentCommentDict['videoTitle'] = utils.get_video_title(current, videoID)
       currentCommentDict['matchReason'] = None
       currentCommentDict['isSpam'] = 'False'
@@ -127,10 +126,12 @@ def get_comments(current, filtersDict, miscData, config, allVideoCommentsDict, s
         allVideoCommentsDict[parentAuthorChannelID] = [currentCommentDict]
     except TypeError: # This might not be necessary, might remove later if not
       pass
-    
+
     # If there are more replies than in the limited list
     if numReplies > 0 and len(limitedRepliesList) < numReplies:
-      if numReplies > 7 and (filtersDict['filterMode'] == "AutoSmart" or filtersDict['filterMode'] == "SensitiveSmart") and config['detect_spam_threads'] == True:
+      if (numReplies > 7
+          and filtersDict['filterMode'] in ["AutoSmart", "SensitiveSmart"]
+          and config['detect_spam_threads'] == True):
         parentCommentDict = currentCommentDict
       else:
         parentCommentDict = None
@@ -139,7 +140,6 @@ def get_comments(current, filtersDict, miscData, config, allVideoCommentsDict, s
       if allVideoCommentsDict == "Error":
         return "Error", None
 
-    # If all the replies are in the limited list
     elif numReplies > 0 and len(limitedRepliesList) == numReplies: # limitedRepliesList can never be more than numReplies
       allVideoCommentsDict = get_replies(current, filtersDict, miscData, config, parent_id, videoID, parentAuthorChannelID, videosToScan, allVideoCommentsDict, repliesList=limitedRepliesList)
       if allVideoCommentsDict == "Error":
@@ -174,8 +174,8 @@ def get_replies(current, filtersDict, miscData, config, parent_id, videoID, pare
   authorChannelName = None
   commentText = None
   threadDict = {}
-  
-  if repliesList == None:
+
+  if repliesList is None:
     fieldsToFetch = "nextPageToken,items/snippet/authorChannelId/value,items/id,items/snippet/authorDisplayName,items/snippet/textDisplay,items/snippet/publishedAt"
     replies = []
     replyPageToken = None
@@ -211,7 +211,7 @@ def get_replies(current, filtersDict, miscData, config, parent_id, videoID, pare
 
   else:
     replies = repliesList
- 
+
   # Create list of author names in current thread, add into list - Only necessary when scanning comment text
   allThreadAuthorNames = []
 
@@ -229,11 +229,16 @@ def get_replies(current, filtersDict, miscData, config, parent_id, videoID, pare
     # Get author display name
     try:
       authorChannelName = reply["snippet"]["authorDisplayName"]
-      if filtersDict['filterMode'] == "Username" or filtersDict['filterMode'] == "AutoASCII" or filtersDict['filterMode'] == "AutoSmart" or filtersDict['filterMode'] == "NameAndText":
+      if filtersDict['filterMode'] in [
+          "Username",
+          "AutoASCII",
+          "AutoSmart",
+          "NameAndText",
+      ]:
         allThreadAuthorNames.append(authorChannelName)
     except KeyError:
       authorChannelName = "[Deleted Channel]"
-    
+
     # Comment Text
     try:
       commentText = reply["snippet"]["textDisplay"] # Remove Return carriages
@@ -254,7 +259,7 @@ def get_replies(current, filtersDict, miscData, config, parent_id, videoID, pare
     if config['json_log_all_comments'] == True:
       currentCommentDict['uploaderChannelID'] = miscData.channelOwnerID
       currentCommentDict['uploaderChannelName'] = miscData.channelOwnerName
-      currentCommentDict['textUnsanitized'] = str(commentText)
+      currentCommentDict['textUnsanitized'] = commentText
       currentCommentDict['videoTitle'] = utils.get_video_title(current, videoID)
       currentCommentDict['matchReason'] = None
       currentCommentDict['isSpam'] = 'False'
@@ -274,9 +279,9 @@ def get_replies(current, filtersDict, miscData, config, parent_id, videoID, pare
       pass
 
     # Update latest stats
-    current.scannedRepliesCount += 1 
+    current.scannedRepliesCount += 1
     print_count_stats(current, miscData, videosToScan, final=False)
-  
+
   # This won't exist if spam thread detection isn't enabled, because of check in get_comments function
   if parentCommentDict:
     current = check_spam_threads(current, filtersDict, miscData, config, parentCommentDict, threadDict)
